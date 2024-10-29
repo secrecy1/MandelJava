@@ -5,7 +5,7 @@ public class Frame extends JFrame {
     Frame() {
         ArrayList<Complex> complexNumbers = new ArrayList<>();
          double increment = 0.00625;
-        //increment = 0.003125;
+        increment = 0.003125;
         //increment = .0125;
 
         for (double real = -2; real < 2; real += increment) {
