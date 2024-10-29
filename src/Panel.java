@@ -1,13 +1,10 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 
-public class Panel extends JPanel {
+public class Panel extends JPanel implements MouseMotionListener, KeyListener {
     private double deltaTime;
     private int scale = 175;
     private double zoomFactor = 1.0;
@@ -15,8 +12,12 @@ public class Panel extends JPanel {
     private AffineTransform transform;
     private AffineTransform Default;
     private int lastX = 0, lastY = 0;
+    private double increment = 0.003125;
+    Thread ticker;
     ArrayList<Double> x;
     ArrayList<Double> y;
+    int xOffset;
+    int yOffset;
     Color[] colors;
 
     Panel(Complex c) {
@@ -32,8 +33,13 @@ public class Panel extends JPanel {
     }
 
     Panel(ArrayList<Complex> c) {
-       // setUpZoom();
-        colors = new Color[]{Color.red, Color.orange, Color.yellow, Color.green, Color.blue, new Color(100, 0, 255),Color.black,Color.black};
+
+        ticker = new Thread(new Ticker());
+        ticker.start();
+        addMouseMotionListener(this);
+        addKeyListener(this);
+        requestFocusInWindow();
+        setFocusable(true);
         x = new ArrayList<>();
         y = new ArrayList<>();
         for (int i = 0; i < c.size(); i++) {
@@ -45,65 +51,27 @@ public class Panel extends JPanel {
         setOpaque(true);
         //setBackground(new Color(151, 151, 151));
     }
-    private void setUpZoom() {
-        transform = new AffineTransform();
-        Default = new AffineTransform();
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                int keyCode = e.getKeyCode();
-                double zoomAmount = 1.0;
-                if (keyCode == KeyEvent.VK_UP) { // Zoom in
-                    zoomAmount = 1.1;
-                } else if (keyCode == KeyEvent.VK_DOWN) { // Zoom out
-                    zoomAmount = 0.9;
-                }
-                if (keyCode == KeyEvent.VK_UP || keyCode == KeyEvent.VK_DOWN) {
-                    zoomFactor *= zoomAmount;
-                    zoomFactor = Math.max(zoomFactor, zoomStep);
-                    double offsetX = (lastX - getWidth() / 2.0) * (1 - zoomAmount);
-                    double offsetY = (lastY - getHeight() / 2.0) * (1 - zoomAmount);
-                    transform.translate(offsetX, offsetY);
-                    transform.scale(zoomAmount, zoomAmount);
-                    repaint();
-                }
-            }
-        });
-
-        addMouseMotionListener(new MouseMotionListener() {
-            @Override
-            public void mouseDragged(MouseEvent e) {
-                int deltaX = e.getX() - lastX;
-                int deltaY = e.getY() - lastY;
-                transform.translate(deltaX, deltaY);
-                lastX = e.getX();
-                lastY = e.getY();
-                repaint();
-            }
-
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                lastX = e.getX();
-                lastY = e.getY();
-            }
-        });
-
-        setFocusable(true);
+    Panel()
+    {
+        ticker = new Thread(new Ticker());
+        ticker.start();
+        addMouseMotionListener(this);
+        addKeyListener(this);
         requestFocusInWindow();
+        setFocusable(true);
+        setPreferredSize(new Dimension(750, 750));
+        setOpaque(true);
     }
-
 
     private void update() {
     }
 
     protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g;
-       /* try {
-            g2d.transform(transform);
-        }catch (Exception e)
-        {
-            System.out.println(e);
-        } */
+        System.out.println(zoomFactor);
+        g2d.translate(xOffset,yOffset);
+        g2d.scale(zoomFactor,zoomFactor);
+        g2d.translate(-xOffset,-yOffset);
         drawAxises(g2d);
         paintPoint(g2d);
     }
@@ -113,19 +81,74 @@ public class Panel extends JPanel {
     }
     private void paintPoint(Graphics2D g) {
         //g.transform(Default);
+
         int max = -1;
         for (int i = 0; i < x.size(); i++) {
-            System.out.println(Math.max(Complex.runIterations(new Complex(x.get(i) / scale, y.get(i) / scale)),max));
+
             max = (Math.max(Complex.runIterations(new Complex(x.get(i) / scale, y.get(i) / scale)),max));
             g.setColor(generateColor(Complex.runIterations(new Complex(x.get(i) / scale, y.get(i) / scale))));
-            g.fillOval((int) (x.get(i) + (750 / 2) - 2), (int) ((750 / 2) - y.get(i) - 2), 2, 2);
+            g.fillOval((int) (x.get(i) + (750 / 2) -1), (int) ((750 / 2) - y.get(i)  -1), 2, 2);
+            g.fillOval((int) (x.get(i) + (750 / 2) -1), (int) ((750 / 2) - (-1*y.get(i))-1 ), 2, 2);
         }
+    }
+    private void paintPoint2(Graphics2D g)
+    {
+
+        int max = -1;
+            for (double real = -2; real < 2; real += increment) {
+                for (double imaginary = -2; imaginary < 2; imaginary += increment) {
+
+                    if (new Complex(real, imaginary).getMagnitude() < 2.0d) {
+                        g.setColor(generateColor(Complex.runIterations(new Complex(real, imaginary))));
+                        g.fillOval((int) ((real*scale) + (750 / 2) - 2), (int) ((750 / 2) - (imaginary*scale) - 2), 2, 2);
+                    }
+                }
+            }
+
+
     }
 
     private void drawAxises(Graphics2D g) {
         //g.transform(Default);
         g.drawLine(375, 0, 375, 750);
         g.drawLine(0, 375, 750, 375);
+    }
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+
+    }
+
+    @Override
+    public void mouseMoved(MouseEvent e) {
+        xOffset = e.getX();
+        yOffset = e.getY();
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+
+
+        if (e.getKeyCode() == KeyEvent.VK_W) {
+            zoomFactor += zoomStep;
+        } else if (e.getKeyCode() == KeyEvent.VK_S) {
+            zoomFactor -= zoomStep;
+            if (zoomFactor < 0.1) {
+                zoomFactor = 0.1;
+            }
+        }
+        System.out.println(zoomFactor);
+        repaint();
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+
     }
 
     private class Ticker implements Runnable {
@@ -146,6 +169,7 @@ public class Panel extends JPanel {
                 while (accumulator > updateRate) {
                     update();
                     repaint();
+
                     accumulator -= updateRate;
                 }
             }
